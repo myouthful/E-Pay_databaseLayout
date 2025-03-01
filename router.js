@@ -149,6 +149,15 @@ Router.get('/account/balance', async (req, res) => {
     }
 });
 
+/**
+ * REQUEST HEADER
+ * ClientId: c4091897667d44f4790674e37d9216453
+ * Nonce: 20200410202513869
+ * Signature: TAP2kgjhhodYUcawFIwsn2GSxjoyVvWWQDZMhHuMFFM=
+ * 
+ * Initiate Transfer
+ */
+
 
 Router.post('/account/transfer', async (req, res) => {
     const clientId = req.headers.clientid;
