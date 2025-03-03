@@ -168,6 +168,9 @@ Router.post('/account/transfer', async (req, res) => {
     const receiver_account = req.body.receiver_account;
     const transfer_amount = parseFloat(req.body.transfer_amount);
 
+    console.log(req.body);
+    
+
     try {
         // Verify headers
         if (!clientId || !Nonce || !Signature) {
