@@ -2,7 +2,12 @@ const express = require('express');
 const Router= require ('./router.js');
 
 // cors would be strongly configured as more features are roled out
-const cors= require('cors')
+// Allow requests from your frontend domain
+app.use(cors({
+    origin: 'https://e-pay-4zu3.onrender.com',  // Change this to allow only your frontend
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
 
 
 const PORT= 3000;
