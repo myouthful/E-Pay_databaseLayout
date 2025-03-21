@@ -275,8 +275,354 @@ Router.post('/account/transfer', async (req, res) => {
     }
 });
 
+Router.post('/addemployee', async (req, res) => {
+    const authKey = req.headers.authkey;
 
- 
+    try {
+        if (!authKey) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Auth key is required in headers'
+            });
+        }
+
+        // Connect to employees database
+        const client = await connectToDatabase();
+        const db = client.db('employees');
+
+        // Verify auth key
+        const authKeyExists = await db.collection('levelone').findOne({ authKey });
+        if (!authKeyExists) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid auth key'
+            });
+        }
+
+        // Validate required fields
+        const requiredFields = [
+            'firstname', 'lastname', 'middlename', 'age', 
+            'zipcode', 'address', 'phone', 'email', 
+            'sex', 'maritalStatus', 'bankBranch', 
+            'salary', 'level', 'role'
+        ];
+
+        for (const field of requiredFields) {
+            if (!req.body[field]) {
+                return res.status(400).json({
+                    status: 'failed',
+                    error: `${field} is required`
+                });
+            }
+        }
+
+        // Create employee document
+        const employeeDoc = {
+            firstName: req.body.firstname,
+            lastName: req.body.lastname,
+            middleName: req.body.middlename,
+            age: parseInt(req.body.age),
+            zipCode: req.body.zipcode,
+            address: req.body.address,
+            phone: req.body.phone,
+            email: req.body.email,
+            sex: req.body.sex,
+            maritalStatus: req.body.maritalStatus,
+            bankBranch: req.body.bankBranch,
+            salary: parseFloat(req.body.salary),
+            level: req.body.level,
+            role: req.body.role,
+            createdAt: new Date(),
+            employeeId: `EMP${Date.now()}`
+        };
+
+        // Insert employee record
+        const result = await db.collection('employedList').insertOne(employeeDoc);
+
+        if (result.acknowledged) {
+            return res.status(201).json({
+                status: 'success',
+                message: 'Employee added successfully',
+                data: {
+                    employeeId: employeeDoc.employeeId
+                }
+            });
+        } else {
+            return res.status(500).json({
+                status: 'failed',
+                error: 'Failed to add employee'
+            });
+        }
+
+    } catch (error) {
+        console.error('Add employee error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    }
+});
+
+
+Router.get('/employee', async (req, res) => {
+    const authKey = req.headers.authkey;
+    const email = req.query.email;
+
+    try {
+        // Validate auth key
+        if (!authKey) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Auth key is required in headers'
+            });
+        }
+
+        // Validate email parameter
+        if (!email) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Email parameter is required'
+            });
+        }
+
+        // Connect to employees database
+        const client = await connectToDatabase();
+        const db = client.db('employees');
+
+        // Verify auth key
+        const authKeyExists = await db.collection('levelone').findOne({ authKey });
+        if (!authKeyExists) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid auth key'
+            });
+        }
+
+        // Find employee by email
+        const employee = await db.collection('employedList').findOne(
+            { email: email },
+            { projection: { _id: 0 } } // Exclude MongoDB _id field
+        );
+
+        if (!employee) {
+            return res.status(404).json({
+                status: 'failed',
+                error: 'Employee not found'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            data: employee
+        });
+
+    } catch (error) {
+        console.error('Fetch employee error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    }
+});
+
+// ...existing code...
+
+/**
+ * Update employee role
+ */
+Router.patch('/employee/role', async (req, res) => {
+    const authKey = req.headers.authkey;
+    const { email, newRole } = req.body;
+
+    try {
+        // Validate required fields
+        if (!authKey) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Auth key is required in headers'
+            });
+        }
+
+        if (!email || !newRole) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Email and new role are required'
+            });
+        }
+
+        // Connect to database
+        const client = await connectToDatabase();
+        const db = client.db('employees');
+
+        // Verify auth key
+        const authKeyExists = await db.collection('levelone').findOne({ authKey });
+        if (!authKeyExists) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid auth key'
+            });
+        }
+
+        // Update employee role
+        const result = await db.collection('employedList').updateOne(
+            { email: email },
+            { $set: { role: newRole, updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                status: 'failed',
+                error: 'Employee not found'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Employee role updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update role error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    }
+});
+
+/**
+ * Update employee salary
+ */
+Router.patch('/employee/salary', async (req, res) => {
+    const authKey = req.headers.authkey;
+    const { email, newSalary } = req.body;
+
+    try {
+        // Validate required fields
+        if (!authKey) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Auth key is required in headers'
+            });
+        }
+
+        if (!email || !newSalary) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Email and new salary are required'
+            });
+        }
+
+        // Validate salary
+        if (isNaN(newSalary) || newSalary <= 0) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Invalid salary amount'
+            });
+        }
+
+        // Connect to database
+        const client = await connectToDatabase();
+        const db = client.db('employees');
+
+        // Verify auth key
+        const authKeyExists = await db.collection('levelone').findOne({ authKey });
+        if (!authKeyExists) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid auth key'
+            });
+        }
+
+        // Update employee salary
+        const result = await db.collection('employedList').updateOne(
+            { email: email },
+            { $set: { salary: parseFloat(newSalary), updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                status: 'failed',
+                error: 'Employee not found'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Employee salary updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update salary error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    }
+});
+
+
+Router.patch('/employee/level', async (req, res) => {
+    const authKey = req.headers.authkey;
+    const { email, newLevel } = req.body;
+
+    try {
+        // Validate required fields
+        if (!authKey) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Auth key is required in headers'
+            });
+        }
+
+        if (!email || !newLevel) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Email and new level are required'
+            });
+        }
+
+        // Connect to database
+        const client = await connectToDatabase();
+        const db = client.db('employees');
+
+        // Verify auth key
+        const authKeyExists = await db.collection('levelone').findOne({ authKey });
+        if (!authKeyExists) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid auth key'
+            });
+        }
+
+        // Update employee level
+        const result = await db.collection('employedList').updateOne(
+            { email: email },
+            { $set: { level: newLevel, updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                status: 'failed',
+                error: 'Employee not found'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Employee level updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update level error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    }
+});
+
+
 
 
 
