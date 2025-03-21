@@ -8,10 +8,18 @@ const PORT= 3000;
 
 const app= express();
 
+//https://e-pay-4zu3.onrender.com
+
 app.use(cors({
-    origin: 'https://e-pay-4zu3.onrender.com',  // Change this to allow only your frontend
+    origin: '*',  // Change this to allow only your frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 
+        'Authorization',
+        'clientid',
+        'nonce',
+        'signature',
+        'authkey' ],
+        credentials: true
   }));
 
   app.use(express.json());
