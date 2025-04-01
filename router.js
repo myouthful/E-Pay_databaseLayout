@@ -2,6 +2,8 @@ const express= require('express');
 const { organizations } = require('./dbquery.js');
 const {connectToDatabase,closeConnection}= require('./mongodb.js');
 const {generateAccountNumber,getBankPrefix}= require('./utility.js')
+const {sendWelcomeEmail}= require('./emailservice.js')
+const {sendLoginNotificationEmail}= require('./loginemailtemplate.js')
 
 const Router= express.Router();
 
@@ -17,33 +19,66 @@ Router.post('/account/create', async (req, res) => {
     const Nonce = req.headers.nonce;
     const Signature = req.headers.signature;
 
-    const phone = req.body.phone;          // Changed from req.phone to req.body.phone
-    const first_name = req.body.first_name;
-    const last_name = req.body.last_name;
-    const creator_bank = req.body.creator_bank;
-    const account_type = req.body.account_type;
-    
-    //making sure the creator bank is registered in the request body
-    console.log(creator_bank);
-    
+    const {
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        dateOfBirth,
+        address,
+        identityType,
+        identityNumber,
+        password
+    } = req.body;
+
+    // Set default account type as savings
+    const account_type = "savings";
+    const creator_bank = "E-PAY"; // You can modify this as needed
 
     try {
-        if (!creator_bank) {
-            return res.status(400).json({ error: 'Creator bank is required' });
-        }
-
         // First check: Verify ClientId, Nonce and Signature
         if (!clientid || !Nonce || !Signature) {
-            return res.status(400).json({ error: 'Request Header Missing' });
+            return res.status(400).json({ 
+                status: 'failed',
+                error: 'Request Header Missing' 
+            });
+        }
+
+        // Validate required fields
+        const requiredFields = {
+            firstName,
+            lastName,
+            email,
+            phoneNumber,
+            dateOfBirth,
+            address,
+            identityType,
+            identityNumber,
+            password
+        };
+
+        for (const [field, value] of Object.entries(requiredFields)) {
+            if (!value) {
+                return res.status(400).json({ 
+                    status: 'failed',
+                    error: `${field} is required` 
+                });
+            }
         }
 
         const clientData = await connectToDatabase(clientid);
         if (!clientData) {
-            return res.status(401).json({ error: 'Invalid client credentials' });
+            return res.status(401).json({ 
+                status: 'failed',
+                error: 'Invalid client credentials' 
+            });
         }
 
         if (clientData.Nonce !== Nonce || clientData.Signature !== Signature) {
-            return res.status(401).json({ error: 'Invalid authentication' });
+            return res.status(401).json({ 
+                status: 'failed',
+                error: 'Invalid authentication' 
+            });
         }
 
         // Generate account number
@@ -52,10 +87,16 @@ Router.post('/account/create', async (req, res) => {
         // Create account document
         const accountDocument = {
             account_number: accountNumber,
-            first_name,
-            last_name,
-            phone,
-            account_type,
+            first_name: firstName,
+            last_name: lastName,
+            email,
+            phone: phoneNumber,
+            date_of_birth: dateOfBirth,
+            address,
+            identity_type: identityType,
+            identity_number: identityNumber,
+            password, // Note: In production, hash this password
+            account_type, // Default savings
             creator_bank,
             balance: 0,
             created_at: new Date(),
@@ -63,23 +104,38 @@ Router.post('/account/create', async (req, res) => {
         };
 
         // Save to bank collection
-        const db = clientData.db; // Assuming your connectToDatabase returns db connection
+        const db = clientData.db;
         const result = await db.collection('accountdetails').insertOne(accountDocument);
 
         if (result.acknowledged) {
+            await sendWelcomeEmail(
+                email,
+                firstName,
+                accountNumber,
+                password
+            );
             return res.status(201).json({
+                status: 'success',
                 message: 'Account created successfully',
-                account_number: accountNumber
+                data: {
+                    account_number: accountNumber,
+                    account_name: `${firstName} ${lastName}`,
+                    account_type
+                }
             });
         } else {
-            return res.status(500).json({ error: 'Failed to create account' });
+            return res.status(500).json({ 
+                status: 'failed',
+                error: 'Failed to create account' 
+            });
         }
 
     } catch (error) {
         console.error('Account creation error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
-    }finally {
-        
+        return res.status(500).json({ 
+            status: 'failed',
+            error: 'Internal server error' 
+        });
     }
 });
 
@@ -168,46 +224,63 @@ Router.post('/account/transfer', async (req, res) => {
     const receiver_account = req.body.receiver_account;
     const transfer_amount = parseFloat(req.body.transfer_amount);
 
-    console.log(req.body);
-    
+    let connection;
+    let session;
 
     try {
         // Verify headers
         if (!clientId || !Nonce || !Signature) {
-            return res.status(400).json({ error: 'Request Header Missing' });
+            return res.status(400).json({ 
+                status: 'failed',
+                error: 'Request Header Missing' 
+            });
         }
 
         // Verify required fields
         if (!senders_account || !receiver_account || !transfer_amount) {
-            return res.status(400).json({ error: 'Missing required transfer details' });
+            return res.status(400).json({ 
+                status: 'failed',
+                error: 'Missing required transfer details' 
+            });
         }
 
         // Validate transfer amount
         if (transfer_amount <= 0) {
-            return res.status(400).json({ error: 'Invalid transfer amount' });
+            return res.status(400).json({ 
+                status: 'failed',
+                error: 'Invalid transfer amount' 
+            });
         }
 
-        // Connect and verify client credentials
-        const clientData = await connectToDatabase(clientId);
-        if (!clientData) {
-            return res.status(401).json({ error: 'Invalid client credentials' });
+        // Connect to database with client authentication
+        connection = await connectToDatabase(clientId);
+        if (!connection) {
+            return res.status(401).json({ 
+                status: 'failed',
+                error: 'Invalid client credentials' 
+            });
         }
 
-        if (clientData.Nonce !== Nonce || clientData.Signature !== Signature) {
-            return res.status(401).json({ error: 'Invalid authentication' });
+        // Verify client authentication
+        if (connection.Nonce !== Nonce || connection.Signature !== Signature) {
+            return res.status(401).json({ 
+                status: 'failed',
+                error: 'Invalid authentication' 
+            });
         }
 
-        const db = clientData.db;
+        const db = connection.db;
         const accountsCollection = db.collection('accountdetails');
-
+        
         // Start session for transaction
-        const session = clientData.client.startSession();
+        session = connection.client.startSession();
 
         try {
             await session.withTransaction(async () => {
                 // Fetch sender's account
                 const senderAccount = await accountsCollection.findOne(
-                    { account_number: senders_account }
+                    { account_number: senders_account },
+                    { session }
                 );
 
                 if (!senderAccount) {
@@ -216,7 +289,8 @@ Router.post('/account/transfer', async (req, res) => {
 
                 // Fetch receiver's account
                 const receiverAccount = await accountsCollection.findOne(
-                    { account_number: receiver_account }
+                    { account_number: receiver_account },
+                    { session }
                 );
 
                 if (!receiverAccount) {
@@ -231,24 +305,39 @@ Router.post('/account/transfer', async (req, res) => {
                 // Update sender's balance
                 await accountsCollection.updateOne(
                     { account_number: senders_account },
-                    { $inc: { balance: -transfer_amount } }
+                    { $inc: { balance: -transfer_amount } },
+                    { session }
                 );
 
                 // Update receiver's balance
                 await accountsCollection.updateOne(
                     { account_number: receiver_account },
-                    { $inc: { balance: transfer_amount } }
+                    { $inc: { balance: transfer_amount } },
+                    { session }
                 );
+
+                // Create transaction record
+                const transactionDoc = {
+                    transaction_id: `TRX${Date.now()}`,
+                    sender_account: senders_account,
+                    receiver_account: receiver_account,
+                    amount: transfer_amount,
+                    type: 'transfer',
+                    status: 'success',
+                    created_at: new Date()
+                };
+
+                await db.collection('transactions').insertOne(transactionDoc, { session });
 
                 return res.status(200).json({
                     status: 'success',
                     message: 'Transfer successful',
                     data: {
-                        transaction_id: new Date().getTime(),
+                        transaction_id: transactionDoc.transaction_id,
                         amount: transfer_amount,
                         sender: senders_account,
                         receiver: receiver_account,
-                        date: new Date()
+                        date: transactionDoc.created_at
                     }
                 });
             });
@@ -259,9 +348,11 @@ Router.post('/account/transfer', async (req, res) => {
                     error: 'Insufficient balance'
                 });
             }
-            throw error; // Re-throw other errors
+            throw error;
         } finally {
-            await session.endSession();
+            if (session) {
+                await session.endSession();
+            }
         }
 
     } catch (error) {
@@ -271,7 +362,9 @@ Router.post('/account/transfer', async (req, res) => {
             error: error.message || 'Internal server error'
         });
     } finally {
-       
+        if (connection && connection.client) {
+            await closeConnection(connection);
+        }
     }
 });
 
@@ -623,13 +716,92 @@ Router.patch('/employee/level', async (req, res) => {
 });
 
 
-Router.post('/login',(req,res)=>{
-    const {email,password}= req.body;
-    if(!email || !password){
-        return res.status(400).json({error: 'Email and password are required'})
+Router.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    const clientid = req.headers.clientid;
+    const Nonce = req.headers.nonce;
+    const Signature = req.headers.signature;
+
+    let connection;
+    try {
+        // Validate required fields
+        if (!email || !password) {
+            return res.status(400).json({
+                status: 'failed',
+                error: 'Email and password are required'
+            });
+        }
+
+        // Connect to database
+        connection = await connectToDatabase(clientid);
+        if (!connection) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Database connection failed'
+            });
+        }
+
+        const db = connection.db;
+        
+        // Find user by email and password
+        const user = await db.collection('accountdetails').findOne(
+            { 
+                email: email,
+                password: password  // Note: In production, use proper password hashing
+            },
+            { 
+                projection: { 
+                    account_number: 1,
+                    first_name: 1,
+                    last_name: 1,
+                    email: 1
+                }
+            }
+        );
+
+        if (!user) {
+            return res.status(401).json({
+                status: 'failed',
+                error: 'Invalid email or password'
+            });
+        }
+
+        // Send login notification email
+        const loginTime = new Date().toLocaleString('en-US', { 
+            timeZone: 'Africa/Lagos',
+            dateStyle: 'full',
+            timeStyle: 'long'
+        });
+
+        await sendLoginNotificationEmail(
+            user.email,
+            user.first_name,
+            loginTime
+        );
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Login successful',
+            data: {
+                account_number: user.account_number,
+                first_name: user.first_name,
+                last_name: user.last_name
+            }
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({
+            status: 'failed',
+            error: 'Internal server error'
+        });
+    } finally {
+        // Clean up database connection
+        if (connection && connection.client) {
+            await closeConnection(connection);
+        }
     }
-    return res.status(200).json({message: 'Login successful'})
-})
+});
 
 
 
