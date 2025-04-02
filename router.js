@@ -4,6 +4,8 @@ const {connectToDatabase,closeConnection}= require('./mongodb.js');
 const {generateAccountNumber,getBankPrefix}= require('./utility.js')
 const {sendWelcomeEmail}= require('./emailservice.js')
 const {sendLoginNotificationEmail}= require('./loginemailtemplate.js')
+const {sendTransactionNotification}= require('./transactionnotification.js')
+
 
 const Router= express.Router();
 
@@ -280,7 +282,15 @@ Router.post('/account/transfer', async (req, res) => {
                 // Fetch sender's account
                 const senderAccount = await accountsCollection.findOne(
                     { account_number: senders_account },
-                    { session }
+                    { 
+                        session,
+                        projection: {
+                            balance: 1,
+                            email: 1,
+                            first_name: 1,
+                            last_name: 1
+                        }
+                    }
                 );
 
                 if (!senderAccount) {
@@ -290,7 +300,15 @@ Router.post('/account/transfer', async (req, res) => {
                 // Fetch receiver's account
                 const receiverAccount = await accountsCollection.findOne(
                     { account_number: receiver_account },
-                    { session }
+                    { 
+                        session,
+                        projection: {
+                            balance: 1,
+                            email: 1,
+                            first_name: 1,
+                            last_name: 1
+                        }
+                    }
                 );
 
                 if (!receiverAccount) {
@@ -329,6 +347,33 @@ Router.post('/account/transfer', async (req, res) => {
 
                 await db.collection('transactions').insertOne(transactionDoc, { session });
 
+                const formattedDate = new Date().toLocaleString('en-US', { 
+                    timeZone: 'Africa/Lagos',
+                    dateStyle: 'full',
+                    timeStyle: 'long'
+                });
+                
+                await sendTransactionNotification(
+                    senderAccount.email,
+                    senderAccount.first_name,
+                    'sent',
+                    transfer_amount,
+                    `${receiverAccount.first_name} ${receiverAccount.last_name}`,
+                    transactionDoc.transaction_id,
+                    formattedDate
+                );
+        
+                // Send email to receiver
+                await sendTransactionNotification(
+                    receiverAccount.email,
+                    receiverAccount.first_name,
+                    'received',
+                    transfer_amount,
+                    `${senderAccount.first_name} ${senderAccount.last_name}`,
+                    transactionDoc.transaction_id,
+                    formattedDate
+                );
+                
                 return res.status(200).json({
                     status: 'success',
                     message: 'Transfer successful',
