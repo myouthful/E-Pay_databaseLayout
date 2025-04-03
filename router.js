@@ -109,6 +109,15 @@ Router.post('/account/create', async (req, res) => {
         const db = clientData.db;
         const result = await db.collection('accountdetails').insertOne(accountDocument);
 
+        // Save account number to Accounts database
+        const accountsDb = clientData.client.db('Accounts');
+        await accountsDb.collection('accounts').insertOne({
+            account_number: accountNumber,
+            bank_code: creator_bank,
+            created_at: new Date(),
+            status: 'active'
+        });
+
         if (result.acknowledged) {
             await sendWelcomeEmail(
                 email,
@@ -225,6 +234,7 @@ Router.post('/account/transfer', async (req, res) => {
     const senders_account = req.body.senders_account;
     const receiver_account = req.body.receiver_account;
     const transfer_amount = parseFloat(req.body.transfer_amount);
+    const transfer_description= req.body.transfer_description;
 
     let connection;
     let session;
@@ -239,7 +249,7 @@ Router.post('/account/transfer', async (req, res) => {
         }
 
         // Verify required fields
-        if (!senders_account || !receiver_account || !transfer_amount) {
+        if (!senders_account || !receiver_account || !transfer_amount || transfer_description ) {
             return res.status(400).json({ 
                 status: 'failed',
                 error: 'Missing required transfer details' 
@@ -340,6 +350,7 @@ Router.post('/account/transfer', async (req, res) => {
                     sender_account: senders_account,
                     receiver_account: receiver_account,
                     amount: transfer_amount,
+                    description: transfer_description,
                     type: 'transfer',
                     status: 'success',
                     created_at: new Date()
@@ -360,7 +371,8 @@ Router.post('/account/transfer', async (req, res) => {
                     transfer_amount,
                     `${receiverAccount.first_name} ${receiverAccount.last_name}`,
                     transactionDoc.transaction_id,
-                    formattedDate
+                    formattedDate,
+                    transfer_description
                 );
         
                 // Send email to receiver
@@ -371,7 +383,8 @@ Router.post('/account/transfer', async (req, res) => {
                     transfer_amount,
                     `${senderAccount.first_name} ${senderAccount.last_name}`,
                     transactionDoc.transaction_id,
-                    formattedDate
+                    formattedDate,
+                    transfer_description
                 );
                 
                 return res.status(200).json({

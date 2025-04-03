@@ -13,6 +13,7 @@ const sendTransactionNotification = async (
     recipientEmail,
     recipientName,
     transactionType, // 'sent' or 'received'
+    description ,
     amount,
     otherPartyName,
     transactionId,
@@ -30,17 +31,17 @@ const sendTransactionNotification = async (
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background-color: #003366; color: white; padding: 20px; text-align: center;">
-                    <h1>${isDebit ? 'Debit' : 'Credit'} Transaction Alert</h1>
+                    <h1>${transactionType === 'sent' ? 'Debit' : 'Credit'} Transaction Alert</h1>
                 </div>
                 
                 <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
                     <p>Dear ${recipientName},</p>
                     
-                    <div style="background-color: ${isDebit ? '#fff3cd' : '#d4edda'}; 
+                    <div style="background-color: ${transactionType === 'sent' ? '#fff3cd' : '#d4edda'}; 
                                padding: 15px; margin: 20px 0; 
-                               border-left: 4px solid ${isDebit ? '#ffd700' : '#28a745'}">
-                        <p style="margin: 0;">Your account has been ${isDebit ? 'debited' : 'credited'} with:</p>
-                        <h2 style="margin: 10px 0; color: ${isDebit ? '#dc3545' : '#28a745'}">
+                               border-left: 4px solid ${transactionType === 'sent' ? '#ffd700' : '#28a745'}">
+                        <p style="margin: 0;">Transaction Amount:</p>
+                        <h2 style="margin: 10px 0; color: ${transactionType === 'sent' ? '#dc3545' : '#28a745'}">
                             ₦${amount.toLocaleString()}
                         </h2>
                     </div>
@@ -53,11 +54,15 @@ const sendTransactionNotification = async (
                                 <td style="padding: 8px 0;"><strong>${transactionId}</strong></td>
                             </tr>
                             <tr>
-                                <td style="padding: 8px 0;">Type:</td>
-                                <td style="padding: 8px 0;"><strong>${isDebit ? 'Debit' : 'Credit'}</strong></td>
+                                <td style="padding: 8px 0;">Description:</td>
+                                <td style="padding: 8px 0;"><strong>${description}</strong></td>
                             </tr>
                             <tr>
-                                <td style="padding: 8px 0;">${isDebit ? 'Transferred to' : 'Received from'}:</td>
+                                <td style="padding: 8px 0;">Type:</td>
+                                <td style="padding: 8px 0;"><strong>${transactionType === 'sent' ? 'Debit' : 'Credit'}</strong></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0;">${transactionType === 'sent' ? 'Transferred to' : 'Received from'}:</td>
                                 <td style="padding: 8px 0;"><strong>${otherPartyName}</strong></td>
                             </tr>
                             <tr>
