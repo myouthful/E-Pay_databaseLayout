@@ -12,12 +12,12 @@ const transporter = nodemailer.createTransport({
 const sendTransactionNotification = async (
     recipientEmail,
     recipientName,
-    transactionType, // 'sent' or 'received'
-    description ,
+    transactionType,
     amount,
     otherPartyName,
     transactionId,
-    date
+    date,
+    description
 ) => {
     const isDebit = transactionType === 'sent';
     
@@ -29,63 +29,133 @@ const sendTransactionNotification = async (
         to: recipientEmail,
         subject: `E-PAY Transaction Alert - ${isDebit ? 'Debit' : 'Credit'}`,
         html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background-color: #003366; color: white; padding: 20px; text-align: center;">
-                    <h1>${transactionType === 'sent' ? 'Debit' : 'Credit'} Transaction Alert</h1>
-                </div>
-                
-                <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
-                    <p>Dear ${recipientName},</p>
-                    
-                    <div style="background-color: ${transactionType === 'sent' ? '#fff3cd' : '#d4edda'}; 
-                               padding: 15px; margin: 20px 0; 
-                               border-left: 4px solid ${transactionType === 'sent' ? '#ffd700' : '#28a745'}">
-                        <p style="margin: 0;">Transaction Amount:</p>
-                        <h2 style="margin: 10px 0; color: ${transactionType === 'sent' ? '#dc3545' : '#28a745'}">
-                            ₦${amount.toLocaleString()}
-                        </h2>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
+                    <!-- Header with Logo -->
+                    <div style="background-color: #003366; color: white; padding: 30px 20px; text-align: center;">
+                        <img src="https://your-logo-url.com/logo.png" alt="E-PAY" style="max-height: 50px; margin-bottom: 10px;">
+                        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">
+                            ${isDebit ? '💸 Debit Alert' : '💰 Credit Alert'}
+                        </h1>
                     </div>
 
-                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
-                        <h3 style="margin-top: 0;">Transaction Details:</h3>
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px 0;">Transaction ID:</td>
-                                <td style="padding: 8px 0;"><strong>${transactionId}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0;">Description:</td>
-                                <td style="padding: 8px 0;"><strong>${description}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0;">Type:</td>
-                                <td style="padding: 8px 0;"><strong>${transactionType === 'sent' ? 'Debit' : 'Credit'}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0;">${transactionType === 'sent' ? 'Transferred to' : 'Received from'}:</td>
-                                <td style="padding: 8px 0;"><strong>${otherPartyName}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0;">Date & Time:</td>
-                                <td style="padding: 8px 0;"><strong>${date}</strong></td>
-                            </tr>
-                        </table>
+                    <!-- Main Content -->
+                    <div style="background-color: white; padding: 30px; border-radius: 8px; margin: 20px;">
+                        <!-- Greeting -->
+                        <p style="color: #444; font-size: 16px; margin-bottom: 25px;">
+                            Dear <strong>${recipientName}</strong>,
+                        </p>
+
+                        <!-- Amount Box -->
+                        <div style="
+                            background-color: ${isDebit ? '#fff8f8' : '#f8fff8'}; 
+                            border-left: 5px solid ${isDebit ? '#dc3545' : '#28a745'};
+                            padding: 20px;
+                            margin: 20px 0;
+                            border-radius: 4px;
+                            text-align: center;
+                        ">
+                            <p style="color: #666; margin: 0 0 10px 0; font-size: 14px;">
+                                ${isDebit ? 'Amount Debited' : 'Amount Credited'}
+                            </p>
+                            <h2 style="
+                                color: ${isDebit ? '#dc3545' : '#28a745'}; 
+                                margin: 0;
+                                font-size: 32px;
+                                font-weight: 600;
+                            ">
+                                ₦${amount.toLocaleString()}
+                            </h2>
+                        </div>
+
+                        <!-- Transaction Details -->
+                        <div style="
+                            background-color: #f8f9fa;
+                            border-radius: 8px;
+                            padding: 20px;
+                            margin: 25px 0;
+                        ">
+                            <h3 style="color: #003366; margin: 0 0 15px 0; font-size: 18px;">
+                                Transaction Details
+                            </h3>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 12px 0; color: #666; font-size: 14px;">Transaction ID</td>
+                                    <td style="padding: 12px 0; color: #333; font-weight: 600; text-align: right;">
+                                        ${transactionId}
+                                    </td>
+                                </tr>
+                                <tr style="border-top: 1px solid #eee;">
+                                    <td style="padding: 12px 0; color: #666; font-size: 14px;">Description</td>
+                                    <td style="padding: 12px 0; color: #333; font-weight: 600; text-align: right;">
+                                        ${description}
+                                    </td>
+                                </tr>
+                                <tr style="border-top: 1px solid #eee;">
+                                    <td style="padding: 12px 0; color: #666; font-size: 14px;">
+                                        ${isDebit ? 'Transferred to' : 'Received from'}
+                                    </td>
+                                    <td style="padding: 12px 0; color: #333; font-weight: 600; text-align: right;">
+                                        ${otherPartyName}
+                                    </td>
+                                </tr>
+                                <tr style="border-top: 1px solid #eee;">
+                                    <td style="padding: 12px 0; color: #666; font-size: 14px;">Date & Time</td>
+                                    <td style="padding: 12px 0; color: #333; font-weight: 600; text-align: right;">
+                                        ${date}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Security Notice -->
+                        <div style="
+                            background-color: #fff3cd;
+                            border-left: 5px solid #ffd700;
+                            padding: 15px;
+                            margin: 25px 0;
+                            border-radius: 4px;
+                        ">
+                            <p style="margin: 0; color: #666; font-size: 14px;">
+                                🔒 <strong>Security Notice:</strong> If you did not authorize this transaction, 
+                                please contact our support team immediately.
+                            </p>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                            <p style="color: #666; font-size: 14px; margin: 5px 0;">
+                                Need assistance? Contact us:
+                            </p>
+                            <p style="margin: 5px 0;">
+                                <span style="color: #003366; margin: 0 10px;">
+                                    📞 +234 123 456 7890
+                                </span>
+                                <span style="color: #003366; margin: 0 10px;">
+                                    ✉️ support@epay.com
+                                </span>
+                            </p>
+                        </div>
                     </div>
 
-                    <p style="margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-left: 4px solid #6c757d;">
-                        If you did not authorize this transaction, please contact our support immediately:
-                        <br>📞 +1234567890
-                        <br>✉️ support@epay.com
-                    </p>
-
-                    <p style="margin-top: 30px;">Best regards,<br>E-PAY Team</p>
+                    <!-- Footer -->
+                    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666;">
+                        <p style="margin: 5px 0;">
+                            This is an automated message. Please do not reply to this email.
+                        </p>
+                        <p style="margin: 5px 0;">
+                            © ${new Date().getFullYear()} E-PAY. All rights reserved.
+                        </p>
+                    </div>
                 </div>
-                
-                <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px;">
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                    <p>© ${new Date().getFullYear()} E-PAY. All rights reserved.</p>
-                </div>
-            </div>
+            </body>
+            </html>
         `
     };
 

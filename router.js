@@ -1,13 +1,13 @@
-const express= require('express');
+const express = require('express');
 const { organizations } = require('./dbquery.js');
-const {connectToDatabase,closeConnection}= require('./mongodb.js');
-const {generateAccountNumber,getBankPrefix}= require('./utility.js')
-const {sendWelcomeEmail}= require('./emailservice.js')
-const {sendLoginNotificationEmail}= require('./loginemailtemplate.js')
-const {sendTransactionNotification}= require('./transactionnotification.js')
+const { connectToDatabase, closeConnection } = require('./mongodb.js');
+const { generateAccountNumber, getBankPrefix } = require('./utility.js')
+const { sendWelcomeEmail } = require('./emailservice.js')
+const { sendLoginNotificationEmail } = require('./loginemailtemplate.js')
+const { sendTransactionNotification } = require('./transactionnotification.js')
 
 
-const Router= express.Router();
+const Router = express.Router();
 
 
 /**
@@ -40,9 +40,9 @@ Router.post('/account/create', async (req, res) => {
     try {
         // First check: Verify ClientId, Nonce and Signature
         if (!clientid || !Nonce || !Signature) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'failed',
-                error: 'Request Header Missing' 
+                error: 'Request Header Missing'
             });
         }
 
@@ -61,25 +61,25 @@ Router.post('/account/create', async (req, res) => {
 
         for (const [field, value] of Object.entries(requiredFields)) {
             if (!value) {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     status: 'failed',
-                    error: `${field} is required` 
+                    error: `${field} is required`
                 });
             }
         }
 
         const clientData = await connectToDatabase(clientid);
         if (!clientData) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'failed',
-                error: 'Invalid client credentials' 
+                error: 'Invalid client credentials'
             });
         }
 
         if (clientData.Nonce !== Nonce || clientData.Signature !== Signature) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'failed',
-                error: 'Invalid authentication' 
+                error: 'Invalid authentication'
             });
         }
 
@@ -135,17 +135,17 @@ Router.post('/account/create', async (req, res) => {
                 }
             });
         } else {
-            return res.status(500).json({ 
+            return res.status(500).json({
                 status: 'failed',
-                error: 'Failed to create account' 
+                error: 'Failed to create account'
             });
         }
 
     } catch (error) {
         console.error('Account creation error:', error);
-        return res.status(500).json({ 
+        return res.status(500).json({
             status: 'failed',
-            error: 'Internal server error' 
+            error: 'Internal server error'
         });
     }
 });
@@ -212,7 +212,7 @@ Router.get('/account/balance', async (req, res) => {
         console.error('Balance fetch error:', error);
         return res.status(500).json({ error: 'Internal server error' });
     } finally {
-        
+
     }
 });
 
@@ -234,7 +234,7 @@ Router.post('/account/transfer', async (req, res) => {
     const senders_account = req.body.senders_account;
     const receiver_account = req.body.receiver_account;
     const transfer_amount = parseFloat(req.body.transfer_amount);
-    const transfer_description= req.body.transfer_description;
+    const transfer_description = req.body.transfer_description;
 
     let connection;
     let session;
@@ -242,48 +242,48 @@ Router.post('/account/transfer', async (req, res) => {
     try {
         // Verify headers
         if (!clientId || !Nonce || !Signature) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'failed',
-                error: 'Request Header Missing' 
+                error: 'Request Header Missing'
             });
         }
 
         // Verify required fields
-        if (!senders_account || !receiver_account || !transfer_amount || transfer_description ) {
-            return res.status(400).json({ 
+        if (!senders_account || !receiver_account || !transfer_amount || !transfer_description) {
+            return res.status(400).json({
                 status: 'failed',
-                error: 'Missing required transfer details' 
+                error: 'Missing required transfer details'
             });
         }
 
         // Validate transfer amount
         if (transfer_amount <= 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'failed',
-                error: 'Invalid transfer amount' 
+                error: 'Invalid transfer amount'
             });
         }
 
         // Connect to database with client authentication
         connection = await connectToDatabase(clientId);
         if (!connection) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'failed',
-                error: 'Invalid client credentials' 
+                error: 'Invalid client credentials'
             });
         }
 
         // Verify client authentication
         if (connection.Nonce !== Nonce || connection.Signature !== Signature) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'failed',
-                error: 'Invalid authentication' 
+                error: 'Invalid authentication'
             });
         }
 
         const db = connection.db;
         const accountsCollection = db.collection('accountdetails');
-        
+
         // Start session for transaction
         session = connection.client.startSession();
 
@@ -292,7 +292,7 @@ Router.post('/account/transfer', async (req, res) => {
                 // Fetch sender's account
                 const senderAccount = await accountsCollection.findOne(
                     { account_number: senders_account },
-                    { 
+                    {
                         session,
                         projection: {
                             balance: 1,
@@ -307,10 +307,17 @@ Router.post('/account/transfer', async (req, res) => {
                     throw new Error('Sender account not found');
                 }
 
+                // Log sender's email for debugging
+                console.log('Sender Email:', senderAccount.email);
+                console.log('Sender Details:', {
+                    first_name: senderAccount.first_name,
+                    last_name: senderAccount.last_name
+                });
+
                 // Fetch receiver's account
                 const receiverAccount = await accountsCollection.findOne(
                     { account_number: receiver_account },
-                    { 
+                    {
                         session,
                         projection: {
                             balance: 1,
@@ -324,6 +331,13 @@ Router.post('/account/transfer', async (req, res) => {
                 if (!receiverAccount) {
                     throw new Error('Receiver account not found');
                 }
+
+                // Log receiver's email for debugging
+                console.log('Receiver Email:', receiverAccount.email);
+                console.log('Receiver Details:', {
+                    first_name: receiverAccount.first_name,
+                    last_name: receiverAccount.last_name
+                });
 
                 // Check sufficient balance
                 if (senderAccount.balance < transfer_amount) {
@@ -358,12 +372,12 @@ Router.post('/account/transfer', async (req, res) => {
 
                 await db.collection('transactions').insertOne(transactionDoc, { session });
 
-                const formattedDate = new Date().toLocaleString('en-US', { 
+                const formattedDate = new Date().toLocaleString('en-US', {
                     timeZone: 'Africa/Lagos',
                     dateStyle: 'full',
                     timeStyle: 'long'
                 });
-                
+
                 await sendTransactionNotification(
                     senderAccount.email,
                     senderAccount.first_name,
@@ -372,9 +386,10 @@ Router.post('/account/transfer', async (req, res) => {
                     `${receiverAccount.first_name} ${receiverAccount.last_name}`,
                     transactionDoc.transaction_id,
                     formattedDate,
-                    transfer_description
+                    transfer_description,
+
                 );
-        
+
                 // Send email to receiver
                 await sendTransactionNotification(
                     receiverAccount.email,
@@ -386,7 +401,7 @@ Router.post('/account/transfer', async (req, res) => {
                     formattedDate,
                     transfer_description
                 );
-                
+
                 return res.status(200).json({
                     status: 'success',
                     message: 'Transfer successful',
@@ -415,7 +430,7 @@ Router.post('/account/transfer', async (req, res) => {
 
     } catch (error) {
         console.error('Transfer error:', error);
-        return res.status(500).json({ 
+        return res.status(500).json({
             status: 'failed',
             error: error.message || 'Internal server error'
         });
@@ -452,9 +467,9 @@ Router.post('/addemployee', async (req, res) => {
 
         // Validate required fields
         const requiredFields = [
-            'firstname', 'lastname', 'middlename', 'age', 
-            'zipcode', 'address', 'phone', 'email', 
-            'sex', 'maritalStatus', 'bankBranch', 
+            'firstname', 'lastname', 'middlename', 'age',
+            'zipcode', 'address', 'phone', 'email',
+            'sex', 'maritalStatus', 'bankBranch',
             'salary', 'level', 'role'
         ];
 
@@ -800,15 +815,15 @@ Router.post('/login', async (req, res) => {
         }
 
         const db = connection.db;
-        
+
         // Find user by email and password
         const user = await db.collection('accountdetails').findOne(
-            { 
+            {
                 email: email,
                 password: password  // Note: In production, use proper password hashing
             },
-            { 
-                projection: { 
+            {
+                projection: {
                     account_number: 1,
                     first_name: 1,
                     last_name: 1,
@@ -825,7 +840,7 @@ Router.post('/login', async (req, res) => {
         }
 
         // Send login notification email
-        const loginTime = new Date().toLocaleString('en-US', { 
+        const loginTime = new Date().toLocaleString('en-US', {
             timeZone: 'Africa/Lagos',
             dateStyle: 'full',
             timeStyle: 'long'
@@ -863,4 +878,4 @@ Router.post('/login', async (req, res) => {
 
 
 
-module.exports= Router;
+module.exports = Router;
